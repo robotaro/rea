@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { z } from "zod";
 import {
   nativeFunctionAnnotationsInputSchema,
@@ -440,6 +442,11 @@ export interface ParsedGhidraFunctionResult {
   readonly limitations: readonly string[];
   readonly locations?: readonly EvidenceLocation[];
   readonly relationshipCoverage?: RelationshipCoverage;
+  /**
+   * Whether value, limitations and relationship coverage reproduce the bridge
+   * output exactly, so it carries nothing Evidence does not already hold.
+   */
+  readonly reproducesBridgeOutput: boolean;
 }
 
 /** Require exact, bounded Java-bridge function output before creating Evidence. */
@@ -478,39 +485,45 @@ export const parseGhidraFunctionResult = (
     observation = { value, limitations: [] };
   }
   const parsed = resultSchemas[operation].safeParse(observation.value);
-  return parsed.success
-    ? ok({
-        value: jsonValueSchema.parse(parsed.data),
-        limitations: observation.limitations,
-        ...(observation.relationship_coverage === undefined
-          ? {}
-          : { relationshipCoverage: observation.relationship_coverage }),
-        ...(observation.selection === undefined
-          ? {}
-          : {
-              locations: [
-                {
-                  kind: "file-offset" as const,
-                  offset: observation.selection.file_offset,
-                },
-                {
-                  kind: "address" as const,
-                  address: observation.selection.mapped_address,
-                },
-                {
-                  kind: "address" as const,
-                  address: observation.selection.procedure_address,
-                },
-              ],
-            }),
-      })
-    : err(
-        new AnalysisOutputError(
-          operation,
-          "Ghidra bridge output did not match the function-analysis contract",
-          { cause: parsed.error },
-        ),
-      );
+  if (!parsed.success)
+    return err(
+      new AnalysisOutputError(
+        operation,
+        "Ghidra bridge output did not match the function-analysis contract",
+        { cause: parsed.error },
+      ),
+    );
+  const parsedValue = jsonValueSchema.parse(parsed.data);
+  // A selection projects to role-less Evidence locations, so it is not reproduced.
+  const reproducesBridgeOutput =
+    observation.selection === undefined &&
+    isDeepStrictEqual(parsedValue, observation.value);
+  return ok({
+    value: parsedValue,
+    reproducesBridgeOutput,
+    limitations: observation.limitations,
+    ...(observation.relationship_coverage === undefined
+      ? {}
+      : { relationshipCoverage: observation.relationship_coverage }),
+    ...(observation.selection === undefined
+      ? {}
+      : {
+          locations: [
+            {
+              kind: "file-offset" as const,
+              offset: observation.selection.file_offset,
+            },
+            {
+              kind: "address" as const,
+              address: observation.selection.mapped_address,
+            },
+            {
+              kind: "address" as const,
+              address: observation.selection.procedure_address,
+            },
+          ],
+        }),
+  });
 };
 
 const referenceAddresses = (

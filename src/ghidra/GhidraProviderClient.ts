@@ -1,6 +1,7 @@
 import { analysisErrorWithCleanupFailure } from "../domain/analysisErrorCleanup.js";
 import { artifactFilePrimaryFailure } from "../artifacts/ArtifactFileOperation.js";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { GHIDRA_BRIDGE_SOURCES } from "./GhidraBridgeSources.js";
 
 import {
@@ -498,13 +499,14 @@ export const createGhidraProviderClient = (input: {
   const projectExecution = (
     operation: AnalysisOperation,
     normalized: JsonValue,
-    rawResult: JsonValue,
+    // The bridge output, only when Evidence's own fields do not reproduce it.
+    rawResult: JsonValue | undefined,
     observationLimitations: readonly string[] = [],
     locations: readonly EvidenceLocation[] = [],
     relationshipCoverage?: RelationshipCoverage,
   ) => {
     return createAnalysisExecution(normalized, committedProfile.provider, {
-      rawResult,
+      ...(rawResult === undefined ? {} : { rawResult }),
       locations,
       analysisProfile: committedProfile,
       ...(relationshipCoverage === undefined ? {} : { relationshipCoverage }),
@@ -530,7 +532,13 @@ export const createGhidraProviderClient = (input: {
       );
     const parsed = parseGhidraInventoryResult(operation, called.value);
     if (!parsed.ok) return parsed;
-    return ok(projectExecution(operation, parsed.value, called.value));
+    return ok(
+      projectExecution(
+        operation,
+        parsed.value,
+        distinctBridgeOutput(called.value, parsed.value),
+      ),
+    );
   };
   const loadImageExecution = async (raw: JsonValue, signal?: AbortSignal) => {
     const operation = "inspect_native_load_image";
@@ -662,6 +670,7 @@ export const createGhidraProviderClient = (input: {
       if (operation === "inspect_native_load_image")
         return loadImageExecution(called.value, options?.signal);
       let normalized: JsonValue;
+      let rawResult: JsonValue | undefined;
       let observationLimitations: readonly string[] = [];
       let observationLocations: readonly EvidenceLocation[] = [];
       let relationshipCoverage: RelationshipCoverage | undefined;
@@ -669,6 +678,9 @@ export const createGhidraProviderClient = (input: {
         const result = parseGhidraFunctionResult(operation, called.value);
         if (!result.ok) return result;
         normalized = result.value.value;
+        rawResult = result.value.reproducesBridgeOutput
+          ? undefined
+          : called.value;
         observationLimitations = result.value.limitations;
         observationLocations = result.value.locations ?? [];
         relationshipCoverage = result.value.relationshipCoverage;
@@ -676,6 +688,7 @@ export const createGhidraProviderClient = (input: {
         const result = parseGhidraInventoryResult(operation, called.value);
         if (!result.ok) return result;
         normalized = result.value;
+        rawResult = distinctBridgeOutput(called.value, result.value);
       }
       if (
         operation === "inspect_native_data_type" &&
@@ -722,7 +735,7 @@ export const createGhidraProviderClient = (input: {
         projectExecution(
           operation,
           normalized,
-          called.value,
+          rawResult,
           observationLimitations,
           observationLocations,
           relationshipCoverage,
@@ -782,6 +795,16 @@ export interface GhidraClientAdmission {
 }
 
 /** Admit caller inputs and native authority before Java work starts. */
+/**
+ * Retain bridge output as raw_result only when its parsed projection differs;
+ * an identical copy would double every Evidence record and tool response.
+ */
+const distinctBridgeOutput = (
+  bridge: JsonValue,
+  parsed: JsonValue,
+): JsonValue | undefined =>
+  isDeepStrictEqual(bridge, parsed) ? undefined : bridge;
+
 export const admitGhidraClient = (
   target: BinaryTarget,
   profile: AnalysisProfileCommitment | undefined,

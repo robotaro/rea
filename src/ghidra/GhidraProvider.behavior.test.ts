@@ -1140,8 +1140,15 @@ describe("Ghidra client projection", () => {
           version: "12.1.4",
         },
         analysisProfile: resolved.value.profile,
-        result: [{ address: "0x1000", value: "fixture_main" }],
-        rawResult: [{ procedure: { external: false, thunk: false } }],
+        result: [
+          {
+            address: "0x1000",
+            value: "fixture_main",
+            procedure: { external: false, thunk: false },
+          },
+        ],
+        // The parsed inventory reproduces the bridge output exactly.
+        rawResult: null,
       },
     });
     expect(startCount).toBe(0);
@@ -1180,10 +1187,8 @@ describe("Ghidra result projection", () => {
     if (!execution.ok) throw execution.error;
     expect(execution.value.result).toBe("void main() {}");
     expect(execution.value.limitations).toContain(limitation);
-    expect(execution.value.rawResult).toEqual({
-      value: "void main() {}",
-      limitations: [limitation],
-    });
+    // The result and limitations reproduce the envelope, so no copy is kept.
+    expect(execution.value.rawResult).toBeNull();
     await client.close();
   });
 
@@ -3746,3 +3751,30 @@ it.each([
     }
   },
 );
+
+describe("Ghidra raw bridge output", () => {
+  it("retains bridge output that Evidence fields do not reproduce", async () => {
+    const selected = {
+      value: "void main() {}",
+      limitations: [],
+      selection: {
+        file_offset: 4096,
+        mapped_address: "0x401000",
+        procedure_address: "0x401000",
+      },
+    };
+    const ghidra = provider(installationHost(), () => ({
+      start: () => Promise.resolve(ok(sessionInfo())),
+      callTool: () => Promise.resolve(ok(selected)),
+      close: () => Promise.resolve(ok(null)),
+    }));
+    const client = await createElfClient(ghidra);
+    const execution = await client.execute("procedure_pseudo_code", {
+      procedure: "main",
+    });
+    if (!execution.ok) throw execution.error;
+    // Locations do not name the selection roles; the envelope keeps them.
+    expect(execution.value.rawResult).toEqual(selected);
+    await client.close();
+  });
+});

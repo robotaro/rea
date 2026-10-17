@@ -237,7 +237,11 @@ describe("Ghidra relationship metadata validation", () => {
       }),
     ).toEqual({
       ok: true,
-      value: { value: "void f() {}", limitations: [limitation] },
+      value: {
+        value: "void f() {}",
+        limitations: [limitation],
+        reproducesBridgeOutput: true,
+      },
     });
   });
 
@@ -265,6 +269,7 @@ describe("Ghidra relationship metadata validation", () => {
           unresolved_calls: [],
         },
         limitations: [limitation],
+        reproducesBridgeOutput: true,
       },
     });
     expect(
@@ -296,7 +301,11 @@ describe("Ghidra relationship metadata validation", () => {
         }),
       ).toEqual({
         ok: true,
-        value: { value: ["0x2000"], limitations: [limitation] },
+        value: {
+          value: ["0x2000"],
+          limitations: [limitation],
+          reproducesBridgeOutput: true,
+        },
       });
     },
   );
