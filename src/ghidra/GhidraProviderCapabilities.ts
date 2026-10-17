@@ -138,7 +138,11 @@ export const limitationsFor = (operation: string): readonly string[] => {
         "Memory-block end addresses are exclusive; permissions come from Ghidra MemoryBlock flags rather than inference from section names.",
       ];
     case "search_procedures":
-      return [...common, searchLimitation];
+      return [
+        ...common,
+        searchLimitation,
+        "External functions and local thunks are distinct; procedure metadata identifies both and preserves a thunk target when Ghidra resolves one.",
+      ];
     case "search_strings":
       return [...common, stringInventoryLimitation, searchLimitation];
     case "procedure_pseudo_code":

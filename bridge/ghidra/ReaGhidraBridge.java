@@ -2097,7 +2097,9 @@ public final class ReaGhidraBridge extends HeadlessScript {
             if (!matcher.matches(item.value)) {
                 continue;
             }
-            items.add(resultItem(item, null));
+            // Procedure matches carry the same thunk/external facts as
+            // list_procedures, so a thunk and its same-named target differ.
+            items.add(resultItem(item, procedureSearch ? "procedure" : null));
         }
         return items;
     }

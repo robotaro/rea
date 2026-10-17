@@ -146,3 +146,29 @@ describe("containing-procedure complete body evidence", () => {
     ).toBe(false);
   });
 });
+
+// A PLT thunk and its target share one demangled name; search results must
+// keep the facts that tell them apart, as list_procedures does.
+describe("procedure search facts", () => {
+  const thunk = {
+    address: "0x101050",
+    value: "Fixture::update",
+    procedure: { external: false, thunk: true, thunk_target: "0x101119" },
+  };
+  const target = {
+    address: "0x101119",
+    value: "Fixture::update",
+    procedure: { external: false, thunk: false, thunk_target: null },
+  };
+
+  it("keeps thunk classification on every procedure match", () => {
+    expect(
+      parseGhidraInventoryResult("search_procedures", [thunk, target]),
+    ).toEqual({ ok: true, value: [thunk, target] });
+    expect(
+      parseGhidraInventoryResult("search_procedures", [
+        { address: thunk.address, value: thunk.value },
+      ]).ok,
+    ).toBe(false);
+  });
+});

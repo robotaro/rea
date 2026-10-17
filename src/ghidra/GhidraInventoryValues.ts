@@ -351,7 +351,7 @@ const resultSchemas = {
   list_strings: z.array(stringItem),
   procedure_address: canonicalAddress,
   resolve_containing_procedure: containingProcedure,
-  search_procedures: z.array(searchItem),
+  search_procedures: z.array(procedureItem),
   search_strings: z.array(searchItem),
   set_address_name: z.boolean(),
   set_addresses_names: z.record(z.string(), z.boolean()),

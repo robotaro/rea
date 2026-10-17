@@ -436,6 +436,7 @@ const containingProcedureResult = () => ({
 const procedureSearchItem = () => ({
   address: "0x1000",
   value: "fixture_main",
+  procedure: { external: false, thunk: false, thunk_target: null },
 });
 
 const stringSearchItem = () => ({
